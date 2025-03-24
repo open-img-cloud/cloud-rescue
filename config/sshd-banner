@@ -1,0 +1,8 @@
+Welcome on Cloud Rescue System !
+
+This system is based on Rocky Linux 9.4 and is only intended for recovery.
+
+DATA WILL BE LOST ON REBOOT, DO NOT USE THIS SYSTEM IN PRODUCTION !
+
+The username is: rescue
+

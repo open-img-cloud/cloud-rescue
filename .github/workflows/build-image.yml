@@ -1,0 +1,36 @@
+name: build_image
+
+env:
+  version: ${{github.ref_name}}
+  OS_URL:  https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud.latest.x86_64.qcow2
+  BASE_OS_IMAGE: base-os.img
+
+on:
+  push:
+    tags:
+      - '*'
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/net-architect-cloud/libguestfs-tools:latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download base image
+        run: |
+          wget "$OS_URL" -O $BASE_OS_IMAGE
+      
+      - name: Modify base OS image
+        run: | 
+          virt-customize -a $BASE_OS_IMAGE --install epel-release
+          virt-customize -a $BASE_OS_IMAGE --run-command 'dnf install -y https://zfsonlinux.org/epel/zfs-release-2-3$(rpm --eval "%{dist}").noarch.rpm'
+          virt-customize -a $BASE_OS_IMAGE --install curl,dnsutils,htop,iperf,jq,less,lsof,man-db,ncdu,net-tools,nmap,rsync,telnet,wget,whois,iotop,mdadm,kernel-devel,zfs
+          virt-copy-in -a $BASE_OS_IMAGE config/issue /etc/
+          virt-customize -a $BASE_OS_IMAGE --run-command 'echo "Banner /etc/ssh/sshd-banner" >> /etc/ssh/sshd_config'
+          virt-customize -a $BASE_OS_IMAGE --run-command 'touch /etc/skel/.hushlogin'
