@@ -4,6 +4,10 @@ env:
   version: ${{github.ref_name}}
   OS_URL:  https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud.latest.x86_64.qcow2
   BASE_OS_IMAGE: base-os.img
+  LIBGUESTFS_DEBUG: 1
+  LIBGUESTFS_TRACE: 1
+  LIBGUESTFS_PROGRESS: 1
+  LIBGUESTFS_VERBOSE: 1
 
 on:
   push:
