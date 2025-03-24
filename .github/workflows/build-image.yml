@@ -33,7 +33,7 @@ jobs:
       - name: Modify base OS image
         run: | 
           virt-customize -a $BASE_OS_IMAGE --install epel-release
-          virt-customize -a $BASE_OS_IMAGE --run-command 'dnf install -y https://zfsonlinux.org/epel/zfs-release-2-3$(rpm --eval "%{dist}").noarch.rpm'
+          virt-customize -a $BASE_OS_IMAGE --run-command 'dnf install -y https://zfsonlinux.org/epel/zfs-release-2-3.el9.noarch.rpm'
           virt-customize -a $BASE_OS_IMAGE --install curl,dnsutils,htop,iperf,jq,less,lsof,man-db,ncdu,net-tools,nmap,rsync,telnet,wget,whois,iotop,mdadm,kernel-devel,zfs
           virt-copy-in -a $BASE_OS_IMAGE config/issue /etc/
           virt-customize -a $BASE_OS_IMAGE --run-command 'echo "Banner /etc/ssh/sshd-banner" >> /etc/ssh/sshd_config'
