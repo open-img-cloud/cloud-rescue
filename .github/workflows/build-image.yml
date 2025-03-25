@@ -4,10 +4,6 @@ env:
   version: ${{github.ref_name}}
   OS_URL:  https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud.latest.x86_64.qcow2
   BASE_OS_IMAGE: base-os.img
-  LIBGUESTFS_DEBUG: 1
-  LIBGUESTFS_TRACE: 1
-  LIBGUESTFS_PROGRESS: 1
-  LIBGUESTFS_VERBOSE: 1
 
 on:
   push:
@@ -22,6 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/net-architect-cloud/libguestfs-tools:latest
+      options: --device=/dev/kvm
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -31,10 +28,11 @@ jobs:
           wget "$OS_URL" -O $BASE_OS_IMAGE
       
       - name: Modify base OS image
-        run: | 
-          virt-customize -a $BASE_OS_IMAGE --install epel-release
-          virt-customize -a $BASE_OS_IMAGE --run-command 'dnf install -y https://zfsonlinux.org/epel/zfs-release-2-3.el9.noarch.rpm'
-          virt-customize -a $BASE_OS_IMAGE --install curl,dnsutils,htop,iperf,jq,less,lsof,man-db,ncdu,net-tools,nmap,rsync,telnet,wget,whois,iotop,mdadm,kernel-devel,zfs
+        run: |
+	  virt-customize -a $BASE_OS_IMAGE \
+      	    --install epel-release \
+            --run-command 'dnf install -y https://zfsonlinux.org/epel/zfs-release-2-3.$(rpm --eval "%{dist}").noarch.rpm' \
+            --install curl,dnsutils,htop,iotop,iperf,jq,kernel-dev,less,lsof,man-db,mdadm,ncdu,net-tools,nmap,ntfs-3g,rsync,telnet,wget,whois,zfs \
+            --run-command 'echo "Banner /etc/ssh/sshd-banner" >> /etc/ssh/sshd_config' \
+            --run-command 'touch /etc/skel/.hushlogin' 
           virt-copy-in -a $BASE_OS_IMAGE config/issue /etc/
-          virt-customize -a $BASE_OS_IMAGE --run-command 'echo "Banner /etc/ssh/sshd-banner" >> /etc/ssh/sshd_config'
-          virt-customize -a $BASE_OS_IMAGE --run-command 'touch /etc/skel/.hushlogin'
