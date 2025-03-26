@@ -17,7 +17,7 @@ jobs:
   build:
     runs-on: [self-hosted, Linux, kvm]
     container:
-      image: ghcr.io/net-architect-cloud/libguestfs-tools:latest
+      image: ghcr.io/net-architect-cloud/docker-libguestfs-tools:latest
       options: --device=/dev/kvm
     steps:
       - name: Checkout code
