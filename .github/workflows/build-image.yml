@@ -15,7 +15,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, kvm]
     container:
       image: ghcr.io/net-architect-cloud/libguestfs-tools:latest
       options: --device=/dev/kvm
