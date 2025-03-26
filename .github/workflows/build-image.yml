@@ -31,7 +31,7 @@ jobs:
         run: |
           virt-customize -a $BASE_OS_IMAGE \
             --install epel-release \
-            --run-command 'dnf install -y https://zfsonlinux.org/epel/zfs-release-2-3.$(rpm --eval "%{dist}").noarch.rpm' \
+            --run-command 'dnf install -y https://zfsonlinux.org/epel/zfs-release-2-3$(rpm --eval "%{dist}").noarch.rpm' \
             --install curl,dnsutils,htop,iotop,iperf,jq,kernel-dev,less,lsof,man-db,mdadm,ncdu,net-tools,nmap,ntfs-3g,rsync,telnet,wget,whois,zfs \
             --run-command 'echo "Banner /etc/ssh/sshd-banner" >> /etc/ssh/sshd_config' \
             --run-command 'touch /etc/skel/.hushlogin' 
