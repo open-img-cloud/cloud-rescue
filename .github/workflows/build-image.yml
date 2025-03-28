@@ -30,7 +30,7 @@ jobs:
       - name: Modify base OS image
         run: |
           virt-customize -a $BASE_OS_IMAGE \
-            --run-command 'dnf remove -y cockpit-system cockpit-ws cockpit'
+            --run-command 'dnf remove -y cockpit-system cockpit-ws cockpit' \
             --install epel-release \
             --run-command 'dnf install -y https://zfsonlinux.org/epel/zfs-release-2-3$(rpm --eval "%{dist}").noarch.rpm' \
             --run-command 'dnf -y upgrade' \
