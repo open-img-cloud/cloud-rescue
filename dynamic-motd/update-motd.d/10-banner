@@ -1,0 +1,11 @@
+#!/bin/bash
+
+CURRENT_DIR=$(dirname "$0")
+. "$CURRENT_DIR/quiet"
+. "$CURRENT_DIR/colors"
+
+# Obtenir la description de la distribution et retirer les guillemets
+DISTRIB_DESCRIPTION=$(lsb_release -s -d | sed 's/"//g')
+
+# Formater la sortie pour ressembler au format Debian
+echo -e "\n  ${DISTRIB_DESCRIPTION} (kernel $(uname -r))\n"

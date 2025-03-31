@@ -1,0 +1,11 @@
+#!/bin/sh
+
+printf "\n"
+printf "Welcome on Cloud Rescue !\n"
+printf "\n"
+printf "This system is based on Rocky Linux 9.5 and is only intended for recovery.\n"
+printf "\n"
+printf "\e[1;31mDATA WILL BE LOST ON REBOOT, DO NOT USE THIS SYSTEM IN PRODUCTION !\e[0m\n"
+printf "\n"
+printf "For more informations please see here: https://openimages.cloud/oscr\n"
+printf "\n"

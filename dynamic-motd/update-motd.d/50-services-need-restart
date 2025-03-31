@@ -1,0 +1,43 @@
+#!/bin/sh
+
+CURRENT_DIR=$(dirname "$0")
+. "$CURRENT_DIR/quiet"
+. "$CURRENT_DIR/colors"
+
+# Vérification des services qui ont besoin d'être redémarrés
+# Sur Rocky Linux, nous utilisons une méthode différente car needrestart et checkrestart ne sont pas disponibles
+
+# Cette fonction vérifie les services qui utilisent des bibliothèques mises à jour
+check_needs_restart() {
+    # Trouver les processus qui utilisent des bibliothèques supprimées
+    NEEDS_RESTART=$(find /proc/*/maps -type f 2>/dev/null | xargs grep -l '(deleted)' 2>/dev/null | cut -d '/' -f 3 | sort -u)
+    
+    # Compter le nombre de services
+    COUNT=0
+    SERVICES=""
+    
+    for PID in $NEEDS_RESTART; do
+        # Vérifier si le processus existe toujours
+        if [ -d "/proc/$PID" ]; then
+            # Obtenir le nom du service
+            SERVICE=$(ps -p "$PID" -o comm= 2>/dev/null)
+            if [ -n "$SERVICE" ]; then
+                # Vérifier si c'est un service systemd
+                SYSTEMD_SERVICE=$(systemctl status "$PID" 2>/dev/null | grep -o '.*\.service' | head -1)
+                if [ -n "$SYSTEMD_SERVICE" ]; then
+                    SERVICES="$SERVICES $SYSTEMD_SERVICE"
+                    COUNT=$((COUNT + 1))
+                fi
+            fi
+        fi
+    done
+    
+    echo "$COUNT"
+}
+
+# Obtenir le nombre de services qui ont besoin d'être redémarrés
+n=$(check_needs_restart)
+
+if [ "$n" -gt 0 ]; then
+    printf "%b  %s services ont besoin d'être redémarrés.%b\n  Utilisez 'systemctl daemon-reexec' ou redémarrez le système pour les mettre à jour.\n\n" "$LIGHT_RED" "$n" "$NONE"
+fi

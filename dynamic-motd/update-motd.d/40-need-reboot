@@ -1,0 +1,14 @@
+#!/bin/sh
+
+CURRENT_DIR=$(dirname "$0")
+. "$CURRENT_DIR/quiet"
+. "$CURRENT_DIR/colors"
+
+# Vérification si un redémarrage est nécessaire
+# Sur Rocky Linux, nous vérifions si le noyau actuel est différent du noyau installé
+CURRENT_KERNEL=$(uname -r)
+LATEST_KERNEL=$(rpm -q --last kernel | head -n 1 | awk '{print $1}' | sed 's/kernel-//')
+
+if [ "$CURRENT_KERNEL" != "$LATEST_KERNEL" ]; then
+    printf "%b  Mise à jour du noyau en attente! %bVous devriez envisager de redémarrer votre machine.\n\n" "$LIGHT_RED" "$NONE"
+fi

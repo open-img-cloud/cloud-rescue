@@ -1,0 +1,17 @@
+#!/bin/sh
+
+CURRENT_DIR=$(dirname "$0")
+. "$CURRENT_DIR/quiet"
+. "$CURRENT_DIR/colors"
+
+# Vérification des mises à jour disponibles pour Rocky Linux
+n=$(dnf check-update --quiet | grep -v "^$" | wc -l)
+if [ "$n" -gt 0 ]; then
+    printf "%b  Vous avez %s paquets en attente de mise à jour.%b\n\n" "$LIGHT_RED" "$n" "$NONE"
+fi
+
+# Vérification des paquets orphelins pour Rocky Linux
+n=$(dnf autoremove --test 2>/dev/null | grep -c "^Removing:")
+if [ "$n" -gt 0 ]; then
+    printf "%b  Vous avez %s paquets qui ont été installés automatiquement et ne sont plus nécessaires.%b\n\n" "$YELLOW" "$n" "$NONE"
+fi
