@@ -36,7 +36,7 @@ jobs:
             --run-command 'dnf -y upgrade' \
             --install curl,dnsutils,htop,iotop,iperf,jq,kernel-devel,less,lsof,man-db,mdadm,ncdu,net-tools,nmap,ntfs-3g,rsync,telnet,wget,whois,zfs \
             --run-command 'touch /etc/skel/.hushlogin' 
-          virt-copy-in -a $BASE_OS_IMAGE config/issue /etc/ bin/dynamic-motd/update-motd.d /etc/ config/10-openstack-cloud-rescue /etc/update-motd.d/
+          virt-copy-in -a $BASE_OS_IMAGE config/issue /etc/ dynamic-motd/update-motd.d /etc/ config/10-openstack-cloud-rescue /etc/update-motd.d/
  
       - name: Sysprep & Sparsify image
         run: |
