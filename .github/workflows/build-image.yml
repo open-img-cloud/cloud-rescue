@@ -38,7 +38,7 @@ jobs:
             --run-command 'touch /etc/skel/.hushlogin' \
             --copy-in config/issue:/etc/ \
             --copy-in dynamic-motd/update-motd.d:/etc/ \
-            --copy-in config/10-openstack-cloud-rescue:/etc/update-motd.d/
+            --copy-in config/10-cloud-rescue:/etc/update-motd.d/
  
       - name: Sysprep & Sparsify image
         run: |
