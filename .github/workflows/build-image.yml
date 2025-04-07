@@ -18,7 +18,7 @@ jobs:
     runs-on: [self-hosted, Linux, kvm]
     container:
       image: ghcr.io/net-architect-cloud/docker-libguestfs-tools:latest
-      options: --device=/dev/kvm
+      options: --device=/dev/kvm --volume ${{ github.workspace }}/shared:/tmp/docker_shared
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -48,3 +48,5 @@ jobs:
             md5sum cloud-rescue-${{ env.version }}-x86_64.qcow2 > md5.txt
             sha1sum -b cloud-rescue-${{ env.version }}-x86_64.qcow2 > sha1.txt
             sha256sum -b cloud-rescue-${{ env.version }}-x86_64.qcow2 > sha256.txt
+            cp cloud-rescue-${{ env.version }}-x86_64.qcow2 /shared/
+            cp md5.txt sha1.txt sha256.txt /shared/
