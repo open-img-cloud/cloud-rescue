@@ -35,7 +35,7 @@ jobs:
             --run-command 'dnf install -y https://zfsonlinux.org/epel/zfs-release-2-3$(rpm --eval "%{dist}").noarch.rpm' \
             --run-command 'dnf -y upgrade' \
             --install curl,dnsutils,htop,iotop,iperf,jq,kernel-devel,less,lsof,man-db,mdadm,ncdu,net-tools,nmap,ntfs-3g,rsync,telnet,wget,whois,zfs \
-            --run-command 'touch /etc/skel/.hushlogin'
+            --run-command 'touch /etc/skel/.hushlogin' \
             --copy-in config/issue:/etc/ \
             --copy-in dynamic-motd/update-motd.d:/etc/ \
             --copy-in config/10-openstack-cloud-rescue:/etc/update-motd.d/
