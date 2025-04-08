@@ -2,7 +2,7 @@ name: build_image
 
 env:
   version: ${{github.ref_name}}
-  OS_URL:  https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud.latest.x86_64.qcow2
+  OS_URL:  https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
   BASE_OS_IMAGE: base-os.img
 
 on:
@@ -29,12 +29,16 @@ jobs:
       
       - name: Modify base OS image
         run: |
+          qemu-img resize $BASE_OS_IMAGE +16.5G
+          cp $BASE_OS_IMAGE $BASE_OS_IMAGE.bak
+          virt-resize -expand /dev/sda1 $BASE_OS_IMAGE.bak $BASE_OS_IMAGE
           virt-customize -a $BASE_OS_IMAGE \
-            --run-command 'dnf remove -y cockpit-system cockpit-ws cockpit' \
-            --install epel-release \
-            --run-command 'dnf install -y https://zfsonlinux.org/epel/zfs-release-2-3$(rpm --eval "%{dist}").noarch.rpm' \
-            --run-command 'dnf -y upgrade' \
-            --install curl,dnsutils,htop,iotop,iperf,jq,kernel-devel,less,lsof,man-db,mdadm,ncdu,net-tools,nmap,ntfs-3g,rsync,telnet,wget,whois,zfs \
+            --run-command 'grub-install /dev/sda'
+            --run-command 'apt purge snapd motd-news-config -y \
+            --run-command 'apt autopurge -y' \
+            --run-command 'apt update' \
+            --run-command 'apt full-upgrade -y' \
+            --install bc,curl,dnsutils,figlet,htop,iotop,iperf,jq,less,lsb-release,lsof,man-db,mdadm,ncdu,net-tools,nmap,ntfs-3g,python3-utmp,rsync,telnet,wget,whois,zfsutils-linux \
             --run-command 'touch /etc/skel/.hushlogin' \
             --copy-in config/issue:/etc/ \
             --copy-in config/cloud.cfg:/etc/cloud/ \
