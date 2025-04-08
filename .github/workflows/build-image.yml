@@ -15,7 +15,7 @@ on:
 
 jobs:
   build:
-    runs-on: [self-hosted, Linux, kvm]
+    runs-on: [self-hosted, Linux, kvm, ubuntu]
     container:
       image: ghcr.io/net-architect-cloud/docker-libguestfs-tools:latest
       options: --device=/dev/kvm --volume ${{ github.workspace }}/shared:/tmp/docker_shared
