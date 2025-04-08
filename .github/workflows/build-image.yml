@@ -29,12 +29,12 @@ jobs:
       
       - name: Modify base OS image
         run: |
-          qemu-img resize $BASE_OS_IMAGE +16.5G
+          qemu-img resize $BASE_OS_IMAGE +17.5G
           cp $BASE_OS_IMAGE $BASE_OS_IMAGE.bak
           virt-resize -expand /dev/sda1 $BASE_OS_IMAGE.bak $BASE_OS_IMAGE
           virt-customize -a $BASE_OS_IMAGE \
             --run-command 'grub-install /dev/sda' \
-            --run-command 'apt purge snapd motd-news-config -y \
+            --run-command 'apt purge snapd motd-news-config -y' \
             --run-command 'apt autopurge -y' \
             --run-command 'apt update' \
             --run-command 'apt full-upgrade -y' \
