@@ -36,8 +36,7 @@ jobs:
             --run-command 'grub-install /dev/sda' \
             --run-command 'apt purge snapd motd-news-config -y' \
             --run-command 'apt autopurge -y' \
-            --run-command 'apt update' \
-            --run-command 'apt full-upgrade -y' \
+            --update \
             --install bc,curl,dnsutils,figlet,htop,iotop,iperf,jq,less,lsb-release,lsof,man-db,mdadm,ncdu,net-tools,nmap,ntfs-3g,python3-utmp,rsync,telnet,wget,whois,zfsutils-linux \
             --run-command 'touch /etc/skel/.hushlogin' \
             --copy-in config/issue:/etc/ \
