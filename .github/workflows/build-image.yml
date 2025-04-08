@@ -33,7 +33,7 @@ jobs:
           cp $BASE_OS_IMAGE $BASE_OS_IMAGE.bak
           virt-resize -expand /dev/sda1 $BASE_OS_IMAGE.bak $BASE_OS_IMAGE
           virt-customize -a $BASE_OS_IMAGE \
-            --run-command 'grub-install /dev/sda'
+            --run-command 'grub-install /dev/sda' \
             --run-command 'apt purge snapd motd-news-config -y \
             --run-command 'apt autopurge -y' \
             --run-command 'apt update' \
