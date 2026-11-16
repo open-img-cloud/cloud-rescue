@@ -4,6 +4,9 @@ on:
   push:
     tags:
       - 'v*'
+  # Pull requests touching the build: build and boot-test in QEMU, publish nothing.
+  pull_request:
+    paths: ['build/**', '.github/workflows/release.yml', 'VERSION']
   workflow_dispatch:
     inputs:
       version:
