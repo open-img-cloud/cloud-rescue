@@ -168,12 +168,18 @@ mount_system() {
 }
 
 devices() {
-  local name fstype size label
-  while read -r name fstype size label; do
-    [[ -n "$fstype" && "$fstype" != swap && "$fstype" != crypto_LUKS && "$fstype" != LVM2_member && "$fstype" != linux_raid_member ]] || continue
-    on_rescue_disk "$name" && continue
-    echo "$name $fstype $size ${label:--}"
-  done < <(lsblk -rpno NAME,FSTYPE,SIZE,LABEL)
+  # Key="value" pairs: empty columns (a whole disk has no FSTYPE) do not shift the fields.
+  # Parsed with a regex, never eval: a label comes from the disk being repaired.
+  local NAME FSTYPE SIZE LABEL line re='^NAME="([^"]*)" FSTYPE="([^"]*)" SIZE="([^"]*)" LABEL="(.*)"$'
+  while read -r line; do
+    [[ $line =~ $re ]] || continue
+    NAME=${BASH_REMATCH[1]} FSTYPE=${BASH_REMATCH[2]} SIZE=${BASH_REMATCH[3]} LABEL=${BASH_REMATCH[4]}
+    case "$FSTYPE" in
+      "" | swap | crypto_LUKS | LVM2_member | linux_raid_member | iso9660) continue ;;
+    esac
+    on_rescue_disk "$NAME" && continue
+    echo "$NAME $FSTYPE $SIZE ${LABEL:--}"
+  done < <(lsblk -Ppno NAME,FSTYPE,SIZE,LABEL)
 }
 
 case "${1:-}" in
