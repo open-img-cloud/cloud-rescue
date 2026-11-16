@@ -32,7 +32,7 @@ published.
 |---|---|
 | **Base** | [Rocky Linux](https://rockylinux.org/) 9 `GenericCloud` image from [dl.rockylinux.org](https://dl.rockylinux.org/pub/rocky/9/images/x86_64/), checked against its `CHECKSUM` |
 | **Access** | user `rescue` with the SSH key of the instance, passwordless `sudo`; optional password from the metadata (`rescue_pass`); root logged in automatically on the serial and graphical consoles |
-| **Helper** | `rescue-mount`: finds the system on the other disk, mounts it on `/mnt/sysimage` for a `chroot` |
+| **Helpers** | `rescue-menu`: menu of the common repairs, opened at login; `rescue-mount`: finds the system on the other disk, mounts it on `/mnt/sysimage` for a `chroot` |
 | **Firmware** | BIOS |
 | **Format** | qcow2, x86_64 (x86-64-v2, so it boots on older CPU models too) |
 | **Version** | the Rocky Linux build it is made from, e.g. `9.8-20260525.0` ([all versions](https://images.openimages.cloud/cloud-rescue/versions.json)) |
@@ -54,6 +54,8 @@ openstack image create --disk-format qcow2 --container-format bare \
 # Each time: boot the server on the rescue image, its own disk attached next to it
 openstack server rescue --image "Cloud Rescue" my-server
 ssh rescue@<server address>        # same key as the server
+# the repair menu opens: mount, fsck, password, SSH key, fstab, logs, GRUB...
+# or by hand:
 sudo -i
 rescue-mount                       # mounts the server disk on /mnt/sysimage
 chroot /mnt/sysimage /bin/bash     # repair, then exit
@@ -109,6 +111,14 @@ On top of the official Rocky Linux 9 image:
   `nvme-cli`, `sg3_utils`, `hdparm`, `lsof`, `strace`, `ncdu`, `htop`;
 - **Network and transfer**: `tcpdump`, `bind-utils`, `nmap-ncat`, `curl`, `wget`, `rsync`;
 - **Editors and shell**: `vim`, `nano`, `tmux`, `jq`, `tree`;
+- [`rescue-menu`](build/rootfs/usr/local/sbin/rescue-menu), opened at every interactive login
+  (console or SSH with a terminal; not for `ssh host command`, and `RESCUE_NOMENU=1` skips it):
+  mount the system, shell inside it, check or repair a filesystem (`xfs_repair`, `e2fsck`,
+  `fsck.vfat`, `btrfs check`, `ntfsfix`), reset a password, add an SSH key, edit `/etc/fstab`
+  (with a backup copy), read the last boot logs, rebuild the initramfs and the GRUB
+  configuration (Debian/Ubuntu and RHEL-like systems), find what fills the disk, check the
+  network of the rescue VM, unmount everything. Changes made from outside an SELinux system
+  schedule a relabel at its next boot;
 - [`rescue-mount`](build/rootfs/usr/local/sbin/rescue-mount): assembles RAID and LVM, finds the
   installed system on the other disk (XFS, ext4, Btrfs with its usual subvolumes), mounts it with
   its `/boot`, `/boot/efi` and other fstab entries, and binds `/dev`, `/proc`, `/sys` and `/run`

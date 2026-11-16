@@ -1,6 +1,7 @@
 
   cloud-rescue: repair environment from openimages.cloud
 
+  rescue-menu             menu of the common repairs (opens at login)
   rescue-mount            find the disk to repair and mount it on /mnt/sysimage
   chroot /mnt/sysimage    then work inside the repaired system
   rescue-mount --umount   unmount everything before leaving rescue mode

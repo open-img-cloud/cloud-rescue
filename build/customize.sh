@@ -5,7 +5,8 @@
 # cloud-rescue = Rocky Linux 9 GenericCloud (cloud-init, sshd, qemu-guest-agent, serial
 # console) plus:
 #   1. repair tools (LVM, mdadm, LUKS, XFS/ext4/vfat/NTFS, partitioning, recovery, network);
-#   2. rescue-mount, which mounts the disk to repair on /mnt/sysimage for a chroot;
+#   2. rescue-mount, which mounts the disk to repair on /mnt/sysimage for a chroot, and
+#      rescue-menu, a menu of the common repairs opened at interactive login;
 #   3. root autologin on the serial and graphical consoles (for VMs whose network is
 #      broken; console access already goes through the cloud API);
 #   4. the default cloud-init user renamed from `rocky` to `rescue`, with an optional
@@ -38,7 +39,7 @@ BASE_PKGS=(
   lvm2 mdadm cryptsetup xfsprogs e2fsprogs dosfstools parted gdisk
   rsync vim-enhanced nano tmux lsof strace tcpdump bind-utils nmap-ncat
   smartmontools nvme-cli sg3_utils hdparm pciutils usbutils psmisc
-  curl wget tar unzip jq tree file which efibootmgr qemu-img
+  curl wget tar unzip jq tree file which efibootmgr qemu-img newt less
 )
 EPEL_PKGS=(ntfs-3g ntfsprogs testdisk ddrescue ncdu htop)
 
@@ -54,6 +55,9 @@ virt-customize -a "$QCOW2" \
   --upload "$ROOTFS/etc/motd.d/10-cloud-rescue:/etc/motd.d/10-cloud-rescue" \
   --upload "$ROOTFS/usr/local/sbin/rescue-mount:/usr/local/sbin/rescue-mount" \
   --chmod 0755:/usr/local/sbin/rescue-mount \
+  --upload "$ROOTFS/usr/local/sbin/rescue-menu:/usr/local/sbin/rescue-menu" \
+  --chmod 0755:/usr/local/sbin/rescue-menu \
+  --upload "$ROOTFS/etc/profile.d/zz-rescue-menu.sh:/etc/profile.d/zz-rescue-menu.sh" \
   --upload "$ROOTFS/usr/local/sbin/rescue-password:/usr/local/sbin/rescue-password" \
   --chmod 0755:/usr/local/sbin/rescue-password \
   --upload "$ROOTFS/etc/systemd/system/rescue-password.service:/etc/systemd/system/rescue-password.service" \
@@ -128,6 +132,8 @@ for f in $(globs '/etc/fstab' '/etc/default/grub' '/etc/kernel/cmdline' \
     # Keys are UUIDs and "root=UUID=..." strings: no sed metacharacter but '.', harmless.
     sed -i "s|$old|${old_new[$old]}|g" "$local_copy"
   done < <(printf '%s\n' "${!old_new[@]}" | awk '{ print length, $0 }' | sort -rn | cut -d' ' -f2-)
+  # GRUB searches the root filesystem by UUID in some entries: search it by label instead.
+  sed -i -E "s/--fs-uuid (--set=[A-Za-z_]+ )((--hint[^ ]* )*)$old_root/--label \1\2cloudrescue/g" "$local_copy"
   if [[ "$f" == /boot/grub2/grubenv ]]; then
     # grubenv is a fixed 1024-byte block padded with '#': keep that size.
     sed -z -E 's/#+$//' "$local_copy" >"$local_copy.new"

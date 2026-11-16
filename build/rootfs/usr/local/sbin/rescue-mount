@@ -5,6 +5,7 @@
 #                            mount it with its /boot, /boot/efi and other fstab entries,
 #                            and bind /dev, /proc, /sys and /run for a chroot
 #   rescue-mount --list      show the disks and filesystems
+#   rescue-mount --devices   filesystems of the other disks: "device fstype size label"
 #   rescue-mount --umount    unmount everything under /mnt/sysimage
 #
 # The disk cloud-rescue booted from is never touched. XFS filesystems are mounted with
@@ -166,9 +167,19 @@ mount_system() {
   echo "  rescue-mount --umount        when done, before leaving rescue mode"
 }
 
+devices() {
+  local name fstype size label
+  while read -r name fstype size label; do
+    [[ -n "$fstype" && "$fstype" != swap && "$fstype" != crypto_LUKS && "$fstype" != LVM2_member && "$fstype" != linux_raid_member ]] || continue
+    on_rescue_disk "$name" && continue
+    echo "$name $fstype $size ${label:--}"
+  done < <(lsblk -rpno NAME,FSTYPE,SIZE,LABEL)
+}
+
 case "${1:-}" in
   -h | --help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//' ;;
   -l | --list) list ;;
+  --devices) activate >/dev/null; devices ;;
   -u | --umount | --unmount) umount_all ;;
   -*) die "unknown option $1 (see --help)" ;;
   *) mount_system "${1:-}" ;;

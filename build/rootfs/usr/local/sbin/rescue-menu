@@ -1,0 +1,217 @@
+#!/usr/bin/env bash
+# rescue-menu: the common repairs, one key away (cloud-rescue, openimages.cloud).
+# Opens at interactive login (see /etc/profile.d/zz-rescue-menu.sh); run it again any time
+# with `rescue-menu`. "Shell" leaves the menu.
+set -uo pipefail
+
+[[ $EUID -eq 0 ]] || exec sudo "$0" "$@"
+
+T=/mnt/sysimage
+TITLE="cloud-rescue"
+export NEWT_COLORS='root=,black window=,black border=white,black textbox=white,black button=black,white'
+
+mounted() { mountpoint -q "$T"; }
+pause() { echo; read -r -p "Press Enter to return to the menu..." _; }
+msg() { whiptail --title "$TITLE" --msgbox "$1" 12 70; }
+ask() { whiptail --title "$TITLE" --yesno "$1" 12 70; }
+need_mounted() {
+  mounted && return 0
+  if ask "The system to repair is not mounted yet. Mount it now?"; then
+    clear; rescue-mount; pause; mounted
+  else
+    return 1
+  fi
+}
+in_chroot() { chroot "$T" /usr/bin/env -i HOME=/root TERM="${TERM:-linux}" PATH=/usr/sbin:/usr/bin:/sbin:/bin "$@"; }
+# SELinux systems relabel at the next boot after files were changed from outside.
+mark_relabel() {
+  if grep -qsE '^SELINUX=(enforcing|permissive)' "$T/etc/selinux/config"; then
+    touch "$T/.autorelabel"
+    echo "SELinux: the repaired system will relabel its files at the next boot (one extra reboot)."
+  fi
+}
+
+choose_user() { # prompt -> prints the chosen user
+  local items=() u uid
+  while IFS=: read -r u _ uid _ _ _ _; do
+    if [[ $u == root || ($uid -ge 1000 && $uid -lt 65534) ]]; then items+=("$u" ""); fi
+  done <"$T/etc/passwd"
+  whiptail --title "$TITLE" --menu "$1" 20 60 10 "${items[@]}" 3>&1 1>&2 2>&3
+}
+
+do_mount() { clear; rescue-mount; pause; }
+
+do_chroot() {
+  need_mounted || return
+  clear
+  echo "Shell inside the repaired system ($T). Type exit to come back."
+  local sh=/bin/bash
+  [[ -x "$T$sh" ]] || sh=/bin/sh
+  chroot "$T" "$sh" -l
+}
+
+do_fsck() {
+  if mounted; then
+    msg "Filesystems must be unmounted to be checked. Use \"Unmount everything\" first."
+    return
+  fi
+  local items=() dev fstype size label
+  while read -r dev fstype size label; do
+    items+=("$dev" "$fstype $size $label")
+  done < <(rescue-mount --devices)
+  ((${#items[@]})) || { msg "No filesystem found on the other disks."; return; }
+  dev=$(whiptail --title "$TITLE" --menu "Filesystem to check" 20 70 10 "${items[@]}" 3>&1 1>&2 2>&3) || return
+  fstype=$(blkid -o value -s TYPE "$dev")
+  local repair=no
+  ask "Check $dev ($fstype) only, or repair it?\n\nYes = repair, No = check only (read-only)." && repair=yes
+  clear
+  case "$fstype:$repair" in
+    xfs:no) xfs_repair -n "$dev" ;;
+    xfs:yes) xfs_repair "$dev" || {
+      echo
+      echo "If xfs_repair asks to replay the log, mount and unmount the filesystem once,"
+      echo "or, as a last resort, run: xfs_repair -L $dev (drops the log)."
+    } ;;
+    ext2:no | ext3:no | ext4:no) e2fsck -fn "$dev" ;;
+    ext2:yes | ext3:yes | ext4:yes) e2fsck -fy "$dev" ;;
+    vfat:no) fsck.vfat -n "$dev" ;;
+    vfat:yes) fsck.vfat -a "$dev" ;;
+    btrfs:*) btrfs check --readonly "$dev" ;;
+    ntfs:no) ntfsfix -n "$dev" ;;
+    ntfs:yes) ntfsfix "$dev" ;;
+    *) echo "No checker for $fstype." ;;
+  esac
+  pause
+}
+
+do_password() {
+  need_mounted || return
+  local u
+  u=$(choose_user "Reset the password of") || return
+  clear
+  echo "New password for $u in the repaired system:"
+  if in_chroot passwd "$u"; then
+    mark_relabel
+  fi
+  pause
+}
+
+do_sshkey() {
+  need_mounted || return
+  local u key home uid gid
+  u=$(choose_user "Add an SSH public key for") || return
+  key=$(whiptail --title "$TITLE" --inputbox "Public key for $u (ssh-ed25519 AAAA... or ssh-rsa AAAA...)" 10 78 3>&1 1>&2 2>&3) || return
+  [[ "$key" =~ ^(ssh-|ecdsa-|sk-) ]] || { msg "That does not look like an SSH public key."; return; }
+  IFS=: read -r _ _ uid gid _ home _ < <(grep "^$u:" "$T/etc/passwd")
+  mkdir -p "$T$home/.ssh"
+  printf '%s\n' "$key" >>"$T$home/.ssh/authorized_keys"
+  chown "$uid:$gid" "$T$home/.ssh" "$T$home/.ssh/authorized_keys"
+  chmod 700 "$T$home/.ssh"
+  chmod 600 "$T$home/.ssh/authorized_keys"
+  clear
+  echo "Key added to $home/.ssh/authorized_keys of $u."
+  mark_relabel
+  pause
+}
+
+do_fstab() {
+  need_mounted || return
+  cp -a "$T/etc/fstab" "$T/etc/fstab.rescue-$(date +%Y%m%d-%H%M%S)"
+  msg "A backup copy was saved next to it (fstab.rescue-<date>).\n\nTip: add nofail to a line whose disk is gone, or comment it out with #."
+  "${EDITOR:-nano}" "$T/etc/fstab"
+}
+
+do_logs() {
+  need_mounted || return
+  clear
+  if [[ -d "$T/var/log/journal" ]] && compgen -G "$T/var/log/journal/*" >/dev/null; then
+    echo "Errors of the last recorded boot of the repaired system (q to quit):"
+    journalctl -D "$T/var/log/journal" -b 0 -p warning --no-pager | tail -n 300 | less -R
+  else
+    local f
+    for f in /var/log/boot.log /var/log/messages /var/log/syslog /var/log/kern.log; do
+      [[ -f "$T$f" ]] && { echo "== $f (last 200 lines)"; tail -n 200 "$T$f"; }
+    done | less -R
+  fi
+}
+
+do_boot() {
+  need_mounted || return
+  ask "Rebuild the initramfs and the GRUB configuration of the repaired system?\n\nUseful after a kernel, fstab or disk change." || return
+  clear
+  if in_chroot sh -c 'command -v update-initramfs' >/dev/null; then
+    in_chroot update-initramfs -u -k all
+  elif in_chroot sh -c 'command -v dracut' >/dev/null; then
+    in_chroot dracut -f --regenerate-all
+  else
+    echo "No initramfs tool found (update-initramfs or dracut)."
+  fi
+  if in_chroot sh -c 'command -v update-grub' >/dev/null; then
+    in_chroot update-grub
+  elif in_chroot sh -c 'command -v grub2-mkconfig' >/dev/null; then
+    local cfg=/boot/grub2/grub.cfg
+    [[ -f "$T/etc/grub2.cfg" ]] && cfg=$(readlink -f "$T/etc/grub2.cfg" | sed "s|^$T||")
+    in_chroot grub2-mkconfig -o "$cfg"
+  elif in_chroot sh -c 'command -v grub-mkconfig' >/dev/null; then
+    in_chroot grub-mkconfig -o /boot/grub/grub.cfg
+  else
+    echo "No GRUB configuration tool found."
+  fi
+  mark_relabel
+  pause
+}
+
+do_space() {
+  need_mounted || return
+  clear
+  df -h -x tmpfs -x devtmpfs | grep -E "Filesystem|$T"
+  echo
+  if command -v ncdu >/dev/null; then
+    read -r -p "Browse the space used (ncdu)? [Y/n] " a
+    [[ "${a,,}" == n* ]] || ncdu -x "$T"
+  else
+    du -xh --max-depth=2 "$T" 2>/dev/null | sort -h | tail -n 25
+    pause
+  fi
+}
+
+do_network() {
+  clear
+  echo "== Addresses";          ip -br address
+  echo; echo "== Routes";       ip route; ip -6 route | head -n 5
+  echo; echo "== DNS";          grep -E '^(nameserver|search)' /etc/resolv.conf
+  echo; echo "== Internet (IPv4)"; ping -4 -c 2 -W 2 1.1.1.1 || true
+  echo; echo "== Name resolution"; getent hosts openimages.cloud || echo "DNS lookup failed"
+  pause
+}
+
+do_umount() { clear; rescue-mount --umount; pause; }
+
+while true; do
+  if mounted; then
+    state="Mounted: $(findmnt -no SOURCE "$T") on $T"
+  else
+    state="Nothing mounted yet: start with 1."
+  fi
+  choice=$(whiptail --title "$TITLE" --cancel-button "Shell" --menu \
+    "Repair a VM that does not boot.\n$state" 22 74 12 \
+    1 "Mount the system to repair" \
+    2 "Shell inside the repaired system (chroot)" \
+    3 "Check or repair a filesystem (fsck, xfs_repair)" \
+    4 "Reset a user password" \
+    5 "Add an SSH key to a user" \
+    6 "Edit /etc/fstab" \
+    7 "Read the last boot logs" \
+    8 "Rebuild initramfs and GRUB configuration" \
+    9 "Disk space (full disk?)" \
+    10 "Network of this rescue VM" \
+    11 "Unmount everything" \
+    12 "Shell" 3>&1 1>&2 2>&3) || break
+  case "$choice" in
+    1) do_mount ;; 2) do_chroot ;; 3) do_fsck ;; 4) do_password ;; 5) do_sshkey ;;
+    6) do_fstab ;; 7) do_logs ;; 8) do_boot ;; 9) do_space ;; 10) do_network ;;
+    11) do_umount ;; 12) break ;;
+  esac
+done
+clear
+echo "Shell. Run rescue-menu to come back to the menu."
