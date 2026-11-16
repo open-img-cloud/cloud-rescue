@@ -31,7 +31,7 @@ published.
 | | |
 |---|---|
 | **Base** | [Rocky Linux](https://rockylinux.org/) 9 `GenericCloud` image from [dl.rockylinux.org](https://dl.rockylinux.org/pub/rocky/9/images/x86_64/), checked against its `CHECKSUM` |
-| **Access** | user `rescue` with the SSH key of the instance, passwordless `sudo`; root logged in automatically on the serial and graphical consoles |
+| **Access** | user `rescue` with the SSH key of the instance, passwordless `sudo`; optional password from the metadata (`rescue_pass`); root logged in automatically on the serial and graphical consoles |
 | **Helper** | `rescue-mount`: finds the system on the other disk, mounts it on `/mnt/sysimage` for a `chroot` |
 | **Firmware** | BIOS |
 | **Format** | qcow2, x86_64 (x86-64-v2, so it boots on older CPU models too) |
@@ -65,6 +65,21 @@ The `hw_rescue_*` properties enable stable device rescue (Nova Ussuri and later,
 servers that boot from a volume): the server disks keep their usual devices and the rescue
 disk is added last. Without them Nova uses the legacy mode (rescue disk first, server disk
 second), which works too: `rescue-mount` finds the right disk either way.
+
+Lost the key, or need someone without it to log in? Put a password in the server metadata
+before rescuing it: the rescue image sets it on `rescue` and SSH accepts it in addition to
+the key. Without `rescue_pass` the image stays key-only.
+
+```sh
+openstack server set --property rescue_pass='a long passphrase' my-server
+openstack server rescue --image "Cloud Rescue" my-server
+ssh rescue@<server address>        # key or password
+openstack server unset --property rescue_pass my-server   # afterwards
+```
+
+The admin password of `openstack server rescue --password` is used too when the cloud passes
+it through a config drive. Metadata is readable by anyone who can see the server through the
+API and from inside the VM: use a throwaway password and remove it afterwards.
 
 No network in the VM? Open the server console (`openstack console url show my-server`, or the
 dashboard): it is already logged in as root.
@@ -107,7 +122,8 @@ and the kernel never pick the other disk, and XFS filesystems of the repaired di
 with `nouuid`.
 
 The image follows the openimages.cloud cloud-init policy (no root login over SSH, no SSH
-password). The console autologin is the one exception, on purpose: console access already
+password unless you set `rescue_pass`). The console autologin is the other exception, on
+purpose: console access already
 requires the cloud API (OpenStack console, Proxmox web interface) and is not reachable from
 the network.
 

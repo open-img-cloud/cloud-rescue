@@ -5,6 +5,9 @@
   chroot /mnt/sysimage    then work inside the repaired system
   rescue-mount --umount   unmount everything before leaving rescue mode
 
+  SSH password: set rescue_pass in the instance metadata, e.g.
+  openstack server set --property rescue_pass=... <server> (then rescue it)
+
   Tools: lvm, mdadm, cryptsetup, xfs/ext4/vfat/ntfs, parted, gdisk, testdisk,
   ddrescue, smartctl, nvme, rsync, tcpdump, vim, nano, tmux.
   Docs: https://openimages.cloud/images/cloud-rescue/

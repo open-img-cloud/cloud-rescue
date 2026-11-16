@@ -8,7 +8,8 @@
 #   2. rescue-mount, which mounts the disk to repair on /mnt/sysimage for a chroot;
 #   3. root autologin on the serial and graphical consoles (for VMs whose network is
 #      broken; console access already goes through the cloud API);
-#   4. the default cloud-init user renamed from `rocky` to `rescue`;
+#   4. the default cloud-init user renamed from `rocky` to `rescue`, with an optional
+#      password taken from the instance metadata (rescue_pass, see rescue-password);
 #   5. a new UUID for /boot and the label `cloudrescue` on /, used to boot.
 #
 # Why 5: every Rocky Linux 9 GenericCloud image shares the same filesystem UUIDs. Rescuing
@@ -53,6 +54,10 @@ virt-customize -a "$QCOW2" \
   --upload "$ROOTFS/etc/motd.d/10-cloud-rescue:/etc/motd.d/10-cloud-rescue" \
   --upload "$ROOTFS/usr/local/sbin/rescue-mount:/usr/local/sbin/rescue-mount" \
   --chmod 0755:/usr/local/sbin/rescue-mount \
+  --upload "$ROOTFS/usr/local/sbin/rescue-password:/usr/local/sbin/rescue-password" \
+  --chmod 0755:/usr/local/sbin/rescue-password \
+  --upload "$ROOTFS/etc/systemd/system/rescue-password.service:/etc/systemd/system/rescue-password.service" \
+  --run-command 'systemctl enable rescue-password.service' \
   --run-command 'sed -i -E "s/^(\s+name:\s+)rocky\s*$/\1rescue/; s/^(\s+gecos:\s+).*Rocky.*$/\1Cloud Rescue/" /etc/cloud/cloud.cfg' \
   --run-command 'grep -qE "^\s+name:\s+rescue\s*$" /etc/cloud/cloud.cfg' \
   --run-command 'dnf clean all; rm -rf /var/cache/dnf /var/cache/yum /tmp/* /var/tmp/*'
