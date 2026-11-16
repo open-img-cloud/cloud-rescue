@@ -1,0 +1,2 @@
+# cloud-rescue: the rescue helpers live in /usr/local/sbin; let sudo find them.
+Defaults secure_path = /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

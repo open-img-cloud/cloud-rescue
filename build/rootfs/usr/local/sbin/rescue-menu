@@ -17,7 +17,7 @@ ask() { whiptail --title "$TITLE" --yesno "$1" 12 70; }
 need_mounted() {
   mounted && return 0
   if ask "The system to repair is not mounted yet. Mount it now?"; then
-    clear; rescue-mount; pause; mounted
+    clear; /usr/local/sbin/rescue-mount; pause; mounted
   else
     return 1
   fi
@@ -39,7 +39,7 @@ choose_user() { # prompt -> prints the chosen user
   whiptail --title "$TITLE" --menu "$1" 20 60 10 "${items[@]}" 3>&1 1>&2 2>&3
 }
 
-do_mount() { clear; rescue-mount; pause; }
+do_mount() { clear; /usr/local/sbin/rescue-mount; pause; }
 
 do_chroot() {
   need_mounted || return
@@ -58,7 +58,7 @@ do_fsck() {
   local items=() dev fstype size label
   while read -r dev fstype size label; do
     items+=("$dev" "$fstype $size $label")
-  done < <(rescue-mount --devices)
+  done < <(/usr/local/sbin/rescue-mount --devices)
   ((${#items[@]})) || { msg "No filesystem found on the other disks."; return; }
   dev=$(whiptail --title "$TITLE" --menu "Filesystem to check" 20 70 10 "${items[@]}" 3>&1 1>&2 2>&3) || return
   fstype=$(blkid -o value -s TYPE "$dev")
@@ -185,7 +185,7 @@ do_network() {
   pause
 }
 
-do_umount() { clear; rescue-mount --umount; pause; }
+do_umount() { clear; /usr/local/sbin/rescue-mount --umount; pause; }
 
 while true; do
   if mounted; then

@@ -58,6 +58,9 @@ virt-customize -a "$QCOW2" \
   --upload "$ROOTFS/usr/local/sbin/rescue-menu:/usr/local/sbin/rescue-menu" \
   --chmod 0755:/usr/local/sbin/rescue-menu \
   --upload "$ROOTFS/etc/profile.d/zz-rescue-menu.sh:/etc/profile.d/zz-rescue-menu.sh" \
+  --upload "$ROOTFS/etc/sudoers.d/10-cloud-rescue:/etc/sudoers.d/10-cloud-rescue" \
+  --chmod 0440:/etc/sudoers.d/10-cloud-rescue \
+  --run-command 'visudo -cf /etc/sudoers.d/10-cloud-rescue' \
   --upload "$ROOTFS/usr/local/sbin/rescue-password:/usr/local/sbin/rescue-password" \
   --chmod 0755:/usr/local/sbin/rescue-password \
   --upload "$ROOTFS/etc/systemd/system/rescue-password.service:/etc/systemd/system/rescue-password.service" \
