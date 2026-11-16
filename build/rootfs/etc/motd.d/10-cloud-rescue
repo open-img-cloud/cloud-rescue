@@ -1,0 +1,11 @@
+
+  cloud-rescue: repair environment from openimages.cloud
+
+  rescue-mount            find the disk to repair and mount it on /mnt/sysimage
+  chroot /mnt/sysimage    then work inside the repaired system
+  rescue-mount --umount   unmount everything before leaving rescue mode
+
+  Tools: lvm, mdadm, cryptsetup, xfs/ext4/vfat/ntfs, parted, gdisk, testdisk,
+  ddrescue, smartctl, nvme, rsync, tcpdump, vim, nano, tmux.
+  Docs: https://openimages.cloud/images/cloud-rescue/
+

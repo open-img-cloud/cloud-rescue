@@ -1,0 +1,175 @@
+#!/usr/bin/env bash
+# rescue-mount: mount the system to repair on /mnt/sysimage (cloud-rescue, openimages.cloud).
+#
+#   rescue-mount [DEVICE]    find the root filesystem of the other disk (or use DEVICE),
+#                            mount it with its /boot, /boot/efi and other fstab entries,
+#                            and bind /dev, /proc, /sys and /run for a chroot
+#   rescue-mount --list      show the disks and filesystems
+#   rescue-mount --umount    unmount everything under /mnt/sysimage
+#
+# The disk cloud-rescue booted from is never touched. XFS filesystems are mounted with
+# nouuid, so a disk cloned from the same upstream image as this one still mounts.
+set -euo pipefail
+
+TARGET=/mnt/sysimage
+PROBE=/run/rescue-probe
+FS_TYPES=" xfs ext4 ext3 ext2 btrfs "
+
+die() { echo "rescue-mount: $*" >&2; exit 1; }
+say() { echo "rescue-mount: $*"; }
+
+[[ $EUID -eq 0 ]] || die "run as root (sudo -i)"
+
+root_src=$(findmnt -no SOURCE /)
+rescue_disk=$(lsblk -no PKNAME "$root_src" | head -n1)
+[[ -n "$rescue_disk" ]] || die "cannot find the disk cloud-rescue booted from"
+
+# True when DEVICE sits on the rescue disk (directly, or through LVM / md / dm-crypt).
+on_rescue_disk() {
+  lsblk -snro NAME "$1" 2>/dev/null | grep -qx "$rescue_disk"
+}
+
+list() {
+  echo "Booted from /dev/$rescue_disk (cloud-rescue, not touched)."
+  lsblk -o NAME,SIZE,TYPE,FSTYPE,LABEL,MOUNTPOINTS
+}
+
+umount_all() {
+  if mountpoint -q "$TARGET"; then
+    umount -R "$TARGET" && say "unmounted $TARGET"
+  else
+    say "nothing mounted on $TARGET"
+  fi
+}
+
+# Mount options for a filesystem of the repaired system.
+opts_for() { # device [fstab options]
+  local fstype extra=${2:-}
+  fstype=$(blkid -o value -s TYPE "$1" 2>/dev/null || true)
+  extra=${extra//defaults/}
+  extra=$(echo "$extra" | tr ',' '\n' | grep -vE '^(noauto|nofail|x-[^,]*|_netdev|auto|)$' | paste -sd, - || true)
+  [[ "$fstype" == xfs ]] && extra=${extra:+$extra,}nouuid
+  echo "${extra:-defaults}"
+}
+
+# Device for an fstab spec (UUID=, LABEL=, PARTUUID=, PARTLABEL= or a path), off the rescue disk.
+resolve() {
+  local spec=$1 dev
+  case "$spec" in
+    UUID=* | LABEL=* | PARTUUID=* | PARTLABEL=*)
+      for dev in $(blkid -o device -t "$spec" 2>/dev/null); do
+        on_rescue_disk "$dev" || { echo "$dev"; return 0; }
+      done
+      return 1 ;;
+    /dev/*)
+      dev=$(readlink -f "$spec" 2>/dev/null || echo "$spec")
+      [[ -b "$dev" ]] && ! on_rescue_disk "$dev" && echo "$dev" ;;
+    *) return 1 ;;
+  esac
+}
+
+# Prints "<device> <subvol>" for a filesystem that holds an installed system.
+is_root() { # device
+  local dev=$1 fstype sub
+  fstype=$(blkid -o value -s TYPE "$dev" 2>/dev/null || true)
+  mkdir -p "$PROBE"
+  for sub in "" @ root @rootfs; do
+    [[ -n "$sub" && "$fstype" != btrfs ]] && continue
+    local o=ro
+    [[ "$fstype" == xfs ]] && o=ro,nouuid,norecovery
+    [[ -n "$sub" ]] && o="ro,subvol=$sub"
+    if mount -o "$o" "$dev" "$PROBE" 2>/dev/null; then
+      local found=no
+      [[ -f "$PROBE/etc/fstab" || -f "$PROBE/etc/os-release" ]] && found=yes
+      umount "$PROBE"
+      if [[ $found == yes ]]; then echo "$dev ${sub:--}"; return 0; fi
+    fi
+  done
+  return 1
+}
+
+activate() {
+  mdadm --assemble --scan >/dev/null 2>&1 || true
+  vgchange -ay >/dev/null 2>&1 || true
+  local locked=()
+  while read -r name fstype; do
+    [[ "$fstype" == crypto_LUKS ]] || continue
+    on_rescue_disk "$name" && continue
+    lsblk -nro TYPE "$name" | grep -qx crypt || locked+=("$name")
+  done < <(lsblk -rpno NAME,FSTYPE)
+  if ((${#locked[@]})); then
+    say "encrypted (LUKS) volume(s) not opened: ${locked[*]}"
+    say "open them first, e.g.: cryptsetup open ${locked[0]} cryptroot ; then run rescue-mount again"
+  fi
+}
+
+mount_system() {
+  local root="${1:-}" sub=-
+  mountpoint -q "$TARGET" && die "$TARGET is already mounted (rescue-mount --umount first)"
+  activate
+  if [[ -n "$root" ]]; then
+    on_rescue_disk "$root" && die "$root is on the rescue disk itself"
+    read -r root sub < <(is_root "$root" || echo "$root -")
+  else
+    local found=() dev fstype
+    while read -r dev fstype; do
+      [[ "$FS_TYPES" == *" $fstype "* ]] || continue
+      on_rescue_disk "$dev" && continue
+      findmnt -rno SOURCE | grep -qx "$dev" && continue
+      if r=$(is_root "$dev"); then found+=("$r"); fi
+    done < <(lsblk -rpno NAME,FSTYPE)
+    ((${#found[@]})) || { list; die "no installed system found on the other disks (give the device: rescue-mount /dev/XXX)"; }
+    if ((${#found[@]} > 1)); then
+      printf '  %s\n' "${found[@]%% *}"
+      die "several systems found: choose one, e.g. rescue-mount ${found[0]%% *}"
+    fi
+    read -r root sub <<<"${found[0]}"
+  fi
+
+  mkdir -p "$TARGET"
+  local o
+  o=$(opts_for "$root")
+  [[ "$sub" != - ]] && o="$o,subvol=$sub"
+  mount -o "$o" "$root" "$TARGET"
+  say "mounted $root on $TARGET${sub:+ (subvolume $sub)}" | sed 's/ (subvolume -)//'
+
+  # Other filesystems of the repaired system, in fstab order (parents before children).
+  if [[ -f "$TARGET/etc/fstab" ]]; then
+    local spec mp type fopts rest dev
+    while read -r spec mp type fopts rest; do
+      [[ -z "$spec" || "$spec" == \#* ]] && continue
+      [[ "$mp" == / || "$mp" != /* || "$type" == swap || "$type" == none ]] && continue
+      [[ "$type" =~ ^(proc|sysfs|devpts|tmpfs|nfs|nfs4|cifs|devtmpfs)$ ]] && continue
+      if ! dev=$(resolve "$spec"); then
+        say "skipped $mp: $spec not found on the other disks"
+        continue
+      fi
+      mkdir -p "$TARGET$mp"
+      if mount -o "$(opts_for "$dev" "$fopts")" "$dev" "$TARGET$mp" 2>/dev/null; then
+        say "mounted $dev on $TARGET$mp"
+      else
+        say "could not mount $dev on $TARGET$mp (fsck it first?)"
+      fi
+    done <"$TARGET/etc/fstab"
+  fi
+
+  for d in dev dev/pts proc sys run; do
+    mkdir -p "$TARGET/$d"
+    mount --bind "/$d" "$TARGET/$d"
+  done
+  if [[ -d /sys/firmware/efi/efivars ]]; then
+    mount --bind /sys/firmware/efi/efivars "$TARGET/sys/firmware/efi/efivars" 2>/dev/null || true
+  fi
+  echo
+  echo "Ready. Next steps:"
+  echo "  chroot $TARGET /bin/bash     work inside the repaired system"
+  echo "  rescue-mount --umount        when done, before leaving rescue mode"
+}
+
+case "${1:-}" in
+  -h | --help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//' ;;
+  -l | --list) list ;;
+  -u | --umount | --unmount) umount_all ;;
+  -*) die "unknown option $1 (see --help)" ;;
+  *) mount_system "${1:-}" ;;
+esac
