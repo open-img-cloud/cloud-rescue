@@ -26,6 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.v.outputs.version }}
+      upstream: ${{ steps.v.outputs.upstream }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       - id: v
@@ -39,12 +40,15 @@ jobs:
           else
             v=$(tr -d '[:space:]' < VERSION)
           fi
-          if [[ ! "$v" =~ ^9\.[0-9]+-[0-9]{8}\.[0-9]+$ ]]; then
-            echo "::error::version '$v' is not in the upstream form (e.g. 9.8-20260525.0)"
+          # <Rocky version>[-rN]: -rN rebuilds the same Rocky image after a change here
+          # (published versions are immutable).
+          if [[ ! "$v" =~ ^(9\.[0-9]+-[0-9]{8}\.[0-9]+)(-r[0-9]+)?$ ]]; then
+            echo "::error::version '$v' is not <Rocky version>[-rN] (e.g. 9.8-20260525.0 or 9.8-20260525.0-r1)"
             exit 1
           fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
-          echo "Resolved: version=$v"
+          echo "upstream=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          echo "Resolved: version=$v upstream=${BASH_REMATCH[1]}"
 
   build:
     needs: resolve-version
@@ -56,8 +60,9 @@ jobs:
       os_name: cloud-rescue
       version: ${{ needs.resolve-version.outputs.version }}
       output_filename: 'cloud-rescue-{version}-x86_64.qcow2'
-      upstream_url: 'https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base-{version}.x86_64.qcow2'
-      upstream_checksum_url: 'https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base-{version}.x86_64.qcow2.CHECKSUM'
+      # The Rocky build, without the -rN rebuild suffix.
+      upstream_url: 'https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base-${{ needs.resolve-version.outputs.upstream }}.x86_64.qcow2'
+      upstream_checksum_url: 'https://dl.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base-${{ needs.resolve-version.outputs.upstream }}.x86_64.qcow2.CHECKSUM'
       decompress: none
       customize_script: build/customize.sh
       run_sysprep: true

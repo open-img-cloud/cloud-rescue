@@ -28,4 +28,10 @@ if [[ -z "$latest" ]]; then
   exit 1
 fi
 
+# A -rN rebuild of the current Rocky build is still current: keep VERSION as it is.
+current=$(tr -d '[:space:]' < VERSION 2>/dev/null || true)
+if [[ "${current%-r*}" == "$latest" ]]; then
+  latest=$current
+fi
+
 printf '%s\n' "$latest"

@@ -35,7 +35,7 @@ published.
 | **Helpers** | `rescue-menu`: menu of the common repairs, opened at login; `rescue-mount`: finds the system on the other disk, mounts it on `/mnt/sysimage` for a `chroot` |
 | **Firmware** | BIOS |
 | **Format** | qcow2, x86_64 (x86-64-v2, so it boots on older CPU models too) |
-| **Version** | the Rocky Linux build it is made from, e.g. `9.8-20260525.0` ([all versions](https://images.openimages.cloud/cloud-rescue/versions.json)) |
+| **Version** | the Rocky Linux build it is made from, e.g. `9.8-20260525.0`, with `-rN` for a rebuild of the same Rocky build (`9.8-20260525.0-r1`) ([all versions](https://images.openimages.cloud/cloud-rescue/versions.json)) |
 
 ## Rescue a VM
 
@@ -79,8 +79,8 @@ ssh rescue@<server address>        # key or password
 openstack server unset --property rescue_pass my-server   # afterwards
 ```
 
-The admin password of `openstack server rescue --password` is used too when the cloud passes
-it through a config drive. Metadata is readable by anyone who can see the server through the
+Only `rescue_pass` counts: the admin password Nova generates for every server never opens
+password login. Metadata is readable by anyone who can see the server through the
 API and from inside the VM: use a throwaway password and remove it afterwards.
 
 No network in the VM? Open the server console (`openstack console url show my-server`, or the
